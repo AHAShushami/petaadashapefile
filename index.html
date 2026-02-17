@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Pemantauan Penolakan Vaksin - Kedah</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Fonts and Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        #map { height: 500px; width: 100%; z-index: 1; border-radius: 0.5rem; }
+        .card-hover:hover { transform: translateY(-2px); transition: all 0.2s; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-user-doctor text-teal-400 text-2xl"></i>
+                    <div>
+                        <h1 class="font-bold text-xl tracking-tight">VaxWatch Kedah</h1>
+                        <p class="text-xs text-slate-400 font-light">Unit Kesihatan Pekerjaan & Alam Sekitar</p>
+                    </div>
+                </div>
+                <div class="hidden md:block">
+                    <div class="text-sm font-medium bg-slate-800 py-1 px-3 rounded-full text-teal-400">
+                        <i class="fa-solid fa-circle fa-beat-fade mr-2 text-[10px]"></i>Live Data Connection
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-20">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent mb-4"></div>
+            <p class="text-slate-500 animate-pulse">Connecting to Google Sheets API...</p>
+        </div>
+
+        <!-- Dashboard Content (Hidden until loaded) -->
+        <div id="dashboard-content" class="hidden space-y-6">
+
+            <!-- KPI Cards Row -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Total Cases -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-slate-500 mb-1">Total Kes Refusal</p>
+                            <h3 class="text-3xl font-bold text-slate-800" id="total-cases">0</h3>
+                        </div>
+                        <div class="p-2 bg-blue-50 rounded-lg text-blue-600">
+                            <i class="fa-solid fa-users text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Reason -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-500 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-slate-500 mb-1">Sebab Utama</p>
+                            <h3 class="text-lg font-bold text-slate-800 truncate" id="top-reason">-</h3>
+                            <p class="text-xs text-slate-400 mt-1">Isi rumah terjejas</p>
+                        </div>
+                        <div class="p-2 bg-amber-50 rounded-lg text-amber-600">
+                            <i class="fa-solid fa-circle-question text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Most Rejected Vaccine -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-slate-500 mb-1">Vaksin Paling Ditolak</p>
+                            <h3 class="text-lg font-bold text-slate-800" id="top-vaccine">-</h3>
+                            <p class="text-xs text-slate-400 mt-1">Perlu perhatian khusus</p>
+                        </div>
+                        <div class="p-2 bg-red-50 rounded-lg text-red-600">
+                            <i class="fa-solid fa-syringe text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success Rate -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-slate-500 mb-1">Status Kaunseling</p>
+                            <h3 class="text-lg font-bold text-slate-800" id="success-rate">-</h3>
+                            <p class="text-xs text-slate-400 mt-1">Kes berjaya dipujuk</p>
+                        </div>
+                        <div class="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+                            <i class="fa-solid fa-handshake-simple text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Section -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h2 class="font-semibold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-map-location-dot text-indigo-500"></i> Peta Taburan Lokasi
+                    </h2>
+                    <span class="text-xs bg-indigo-100 text-indigo-700 py-1 px-2 rounded font-medium">Data Geocoded + Sempadan Daerah Kesihatan</span>
+                </div>
+                <div id="map"></div>
+            </div>
+
+            <!-- Primary Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Reason Chart -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+                    <h2 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-bar text-amber-500"></i> Analisis Sebab Penolakan
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="reasonChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Vaccine Chart -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+                    <h2 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-red-500"></i> Analisis Jenis Vaksin
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="vaccineChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Demographics & Trend Section -->
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 mt-2">
+                <h2 class="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-layer-group text-teal-600"></i> Analisis Demografi & Trend
+                </h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                     <!-- Trend Chart -->
+                     <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200 lg:col-span-3">
+                        <h3 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-blue-500"></i> Trend Penolakan Mengikut Tahun
+                        </h3>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+    
+                    <!-- Occupation Chart -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+                        <h3 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-briefcase text-purple-500"></i> Pekerjaan Ibu (Top 5)
+                        </h3>
+                        <div class="chart-container">
+                            <canvas id="occupationChart"></canvas>
+                        </div>
+                    </div>
+    
+                    <!-- Education Chart -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200 lg:col-span-2">
+                        <h3 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-graduation-cap text-green-500"></i> Tahap Pendidikan Ibu
+                        </h3>
+                        <div class="chart-container">
+                            <canvas id="educationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm">
+            <p>&copy; 2024 Jabatan Kesihatan Negeri Kedah. Powered by Google Workspace & Open Source.</p>
+        </div>
+    </footer>
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // --- CONFIGURATION ---
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxbSB6FtTwgc7WiYYa7LhUcNpAC5aUH8hAUbbJ0TdReKdwP9MX4Pt8OSYJI_qsy6l9h/exec';
+        
+        // --- DATA SEMPADAN DAERAH (Converted from uploaded CSV) ---
+        // Data ini ditanam terus untuk mengelakkan ralat 404
+        const KEDAH_DISTRICTS_GEOJSON = {
+            "type": "FeatureCollection", 
+            "features": [
+                {"type": "Feature", "properties": {"name": "Langkawi"}, "geometry": {"type": "Polygon", "coordinates": [[[99.6551741, 6.3596883], [99.7101057, 6.3610531], [99.711479, 6.3091867], [99.6771467, 6.2914418], [99.7197188, 6.2887117], [99.7252119, 6.2600454], [99.7430647, 6.2832516], [99.7801436, 6.2832516], [99.8117293, 6.3201064], [99.8323286, 6.3009968], [99.7664106, 6.2327426], [99.7458113, 6.2368381], [99.7128523, 6.2286471], [99.7293318, 6.1904205], [99.7485579, 6.1863247], [99.7526777, 6.2136298], [99.7691572, 6.2095341], [99.7925032, 6.1399026], [99.8652876, 6.2054384], [99.8460615, 6.3091867], [99.8735273, 6.2682359], [99.8584211, 6.3105517], [99.8872603, 6.3132816], [99.8817671, 6.3009968], [99.9202192, 6.3009968], [99.9435652, 6.3119167], [99.9160994, 6.3242012], [99.9119795, 6.3569586], [99.9119795, 6.3979024], [99.8913801, 6.4565827], [99.8803938, 6.4224671], [99.8309553, 6.477051], [99.8007429, 6.4251964], [99.7595442, 6.418373], [99.7032393, 6.4361136], [99.6441877, 6.4320197], [99.6428145, 6.3760661], [99.6551741, 6.3596883]]]}}, 
+                {"type": "Feature", "properties": {"name": "Kubang Pasu"}, "geometry": {"type": "Polygon", "coordinates": [[[100.3665388, 6.5357222], [100.3665388, 6.4483952], [100.3006209, 6.3979024], [100.2470625, 6.328296], [100.1935042, 6.2504896], [100.2621687, 6.1945164], [100.5533064, 6.2846166], [100.5574263, 6.4838736], [100.3665388, 6.5357222]]]}}, 
+                {"type": "Feature", "properties": {"name": "Kota Setar"}, "geometry": {"type": "Polygon", "coordinates": [[[100.2621687, 6.1945164], [100.2800215, 6.092111], [100.32946, 6.0484121], [100.3555525, 5.9254901], [100.4077376, 5.945979], [100.4626692, 6.1385372], [100.6563032, 6.1494604], [100.5533064, 6.2846166], [100.4091108, 6.2395684], [100.2621687, 6.1945164]]]}}, 
+                {"type": "Feature", "properties": {"name": "Padang Terap"}, "geometry": {"type": "Polygon", "coordinates": [[[100.5574263, 6.4838736], [100.5533064, 6.2846166], [100.6563032, 6.1494604], [100.7146307, 6.0454193], [100.848564, 6.1685755], [100.8554304, 6.2341078], [100.8430708, 6.3105517], [100.8183516, 6.4320197], [100.7318342, 6.498883], [100.6508101, 6.445666], [100.5574263, 6.4838736]]]}}, 
+                {"type": "Feature", "properties": {"name": "Yan"}, "geometry": {"type": "Polygon", "coordinates": [[[100.3555525, 5.9254901], [100.3644415, 5.7995465], [100.3548284, 5.712099], [100.3781744, 5.7161984], [100.475678, 5.8186738], [100.4077376, 5.945979], [100.3555525, 5.9254901]]]}}, 
+                {"type": "Feature", "properties": {"name": "Pendang"}, "geometry": {"type": "Polygon", "coordinates": [[[100.6563032, 6.1494604], [100.4626692, 6.1385372], [100.4077376, 5.945979], [100.475678, 5.8186738], [100.7146307, 6.0454193], [100.6563032, 6.1494604]]]}}, 
+                {"type": "Feature", "properties": {"name": "Sik"}, "geometry": {"type": "Polygon", "coordinates": [[[100.8554304, 6.2341078], [100.848564, 6.1685755], [100.6116338, 5.9475706], [100.6349798, 5.9011281], [100.6281133, 5.780906], [100.6857916, 5.7822723], [100.73523, 5.8068652], [100.8917852, 5.8615123], [100.9068914, 5.9666929], [100.9151312, 6.0527347], [101.1279913, 6.1059918], [101.0689397, 6.1510515], [101.1293646, 6.1933767], [101.1073919, 6.2534454], [101.027741, 6.2411592], [100.975556, 6.2752869], [100.9412237, 6.239794], [100.876679, 6.24935], [100.8554304, 6.2341078]]]}}, 
+                {"type": "Feature", "properties": {"name": "Baling"}, "geometry": {"type": "Polygon", "coordinates": [[[101.1279913, 6.1059918], [100.9151312, 6.0527347], [100.8917852, 5.8615123], [100.7228704, 5.8027664], [100.6857916, 5.7822723], [100.6281133, 5.780906], [100.6198736, 5.6784237], [100.5937811, 5.6442589], [100.62674, 5.5827572], [100.7008978, 5.595058], [100.7709356, 5.5936913], [100.8286138, 5.6223924], [100.8629461, 5.5226159], [100.8931585, 5.4952769], [100.9343572, 5.5157813], [100.9796758, 5.6975551], [100.9508367, 5.7658764], [101.0071417, 5.8273585], [101.0387273, 5.9366433], [101.1252447, 5.9434729], [101.1279913, 6.1059918]]]}}, 
+                {"type": "Feature", "properties": {"name": "Kuala Muda"}, "geometry": {"type": "Polygon", "coordinates": [[[100.6116338, 5.9475706], [100.3781744, 5.7161984], [100.3548284, 5.712099], [100.3630682, 5.6784237], [100.3417829, 5.6633916], [100.3421266, 5.6285433], [100.3395508, 5.5810501], [100.373967, 5.5887377], [100.41388, 5.5745565], [100.4317327, 5.5649888], [100.4482122, 5.5622551], [100.5058904, 5.5622551], [100.531983, 5.5540541], [100.5731817, 5.534918], [100.62674, 5.5827572], [100.5937811, 5.6442589], [100.6198736, 5.6784237], [100.6349798, 5.9011281], [100.6116338, 5.9475706]]]}}, 
+                {"type": "Feature", "properties": {"name": "Kulim"}, "geometry": {"type": "Polygon", "coordinates": [[[100.531983, 5.5540541], [100.5237442, 5.4098174], [100.5402227, 5.2655807], [100.6349798, 5.2888277], [100.6981512, 5.2491705], [100.7462164, 5.3120738], [100.7997747, 5.3230129], [100.8547063, 5.3872758], [100.8931585, 5.4952769], [100.8629461, 5.5226159], [100.8286138, 5.6223924], [100.7709356, 5.5936913], [100.7008978, 5.595058], [100.62674, 5.5827572], [100.5731817, 5.534918], [100.531983, 5.5540541]]]}}, 
+                {"type": "Feature", "properties": {"name": "Bandar Baharu"}, "geometry": {"type": "Polygon", "coordinates": [[[100.5402227, 5.2655807], [100.5502226, 5.1400173], [100.4966643, 5.1249717], [100.5172636, 5.1030865], [100.5557158, 5.0770968], [100.5996611, 5.1195004], [100.6614592, 5.1878874], [100.6981512, 5.2491705], [100.6349798, 5.2888277], [100.5402227, 5.2655807]]]}}
+            ]
+        };
+        
+        // --- STATE MANAGEMENT ---
+        let rawData = [];
+        let map;
+        let markersLayer;
+        let districtLayer;
+        
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            fetchData();
+        });
+
+        // --- MAP SETUP ---
+        function initMap() {
+            // Center on Kedah
+            map = L.map('map').setView([6.0, 100.4], 9);
+            
+            // Base Layers
+            const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                maxZoom: 19
+            });
+
+            cartoLight.addTo(map);
+
+            // Initialize Layer Groups
+            markersLayer = L.layerGroup().addTo(map);
+            
+            // Add Local District Boundaries
+            districtLayer = L.geoJSON(KEDAH_DISTRICTS_GEOJSON, {
+                style: function (feature) {
+                    return {
+                        color: "#3b82f6", // Blue-500
+                        weight: 1.5,
+                        opacity: 0.6,
+                        fillOpacity: 0.05, // Very transparent fill
+                        dashArray: '5, 5'  // Dashed line
+                    };
+                },
+                onEachFeature: function (feature, layer) {
+                    // Tooltip with Name
+                    const regionName = feature.properties.name || "Daerah";
+                    
+                    layer.bindTooltip(regionName, {
+                        permanent: false, 
+                        direction: "center",
+                        className: "bg-white px-2 py-1 rounded border border-blue-200 shadow-sm text-xs font-bold text-blue-800"
+                    });
+                    
+                    // Highlight on hover
+                    layer.on({
+                        mouseover: function(e) {
+                            var layer = e.target;
+                            layer.setStyle({
+                                weight: 3,
+                                color: '#2563eb',
+                                fillOpacity: 0.1
+                            });
+                        },
+                        mouseout: function(e) {
+                            districtLayer.resetStyle(e.target);
+                        }
+                    });
+                }
+            }).addTo(map);
+
+            // Add Layer Control
+            const overlays = {
+                "Kes Penolakan (Points)": markersLayer,
+                "Sempadan Daerah (Health)": districtLayer
+            };
+            L.control.layers(null, overlays).addTo(map);
+            
+            // Move regions to back so points stay on top
+            districtLayer.bringToBack();
+        }
+
+        // --- DATA FETCHING ---
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error("Gagal menyambung ke API Google Sheet");
+                const data = await response.json();
+                
+                rawData = data;
+                processData(data);
+                
+                // Show dashboard, hide loader
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('dashboard-content').classList.remove('hidden');
+                
+                // Trigger chart rendering
+                setTimeout(() => {
+                    renderCharts(data);
+                    plotMapPoints(data);
+                }, 100);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div class="text-red-500 bg-red-50 p-4 rounded-lg inline-block">
+                        <i class="fa-solid fa-triangle-exclamation mr-2"></i>
+                        Gagal memuatkan data. Sila semak sambungan internet atau URL API.
+                    </div>
+                `;
+            }
+        }
+
+        // --- DATA PROCESSING & KPI ---
+        function processData(data) {
+            // 1. Total Cases
+            document.getElementById('total-cases').innerText = data.length;
+
+            // 2. Aggregate Reasons
+            const reasonCounts = {};
+            const reasonKeys = ['Homeopathy', 'Tradisional', 'Internet dan medsos', 'Halal Haram', 'Pengaruh keluarga_rakan', 'Ragu_kandungan', 'Takut_kesansampuingan', 'Kos', 'Anggapan_risiko_rendah'];
+
+            // 3. Aggregate Vaccines
+            const vaccineCounts = {};
+            const vaccineKeys = ['Hep B', 'DPT/Hib/Polio', 'MMR', 'Measles', 'HPV', 'ATT', 'PCV', 'Hexaxim'];
+
+            // 4. Demographics & Trend
+            const occupationCounts = {};
+            const educationCounts = {};
+            const yearCounts = {};
+
+            data.forEach(row => {
+                // Reasons
+                reasonKeys.forEach(key => {
+                    if (row[key] && row[key].toString().trim() !== '') {
+                        reasonCounts[key] = (reasonCounts[key] || 0) + 1;
+                    }
+                });
+
+                // Vaccines
+                vaccineKeys.forEach(key => {
+                    if (row[key] && row[key].toString().trim() !== '') {
+                        vaccineCounts[key] = (vaccineCounts[key] || 0) + 1;
+                    }
+                });
+
+                // Occupation
+                const occ = row['PEKERJAAN IBU'] ? row['PEKERJAAN IBU'].toString().trim() : 'UNKNOWN';
+                if (occ) occupationCounts[occ] = (occupationCounts[occ] || 0) + 1;
+
+                // Education
+                const edu = row['TAHAP PENDIDIKAN IBU'] ? row['TAHAP PENDIDIKAN IBU'].toString().trim() : 'UNKNOWN';
+                if (edu) educationCounts[edu] = (educationCounts[edu] || 0) + 1;
+
+                // Year Trend
+                const year = row['Tahun'] ? row['Tahun'].toString().trim() : null;
+                if (year) yearCounts[year] = (yearCounts[year] || 0) + 1;
+            });
+
+            // Find Top Reason
+            let topReason = Object.keys(reasonCounts).reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b, '-');
+            document.getElementById('top-reason').innerText = topReason.replace(/_/g, ' ');
+
+            // Find Top Vaccine
+            let topVaccine = Object.keys(vaccineCounts).reduce((a, b) => vaccineCounts[a] > vaccineCounts[b] ? a : b, '-');
+            document.getElementById('top-vaccine').innerText = topVaccine;
+
+            // Success Rate
+            let acceptedCount = 0;
+            data.forEach(row => {
+                if (row.OUTCOME && row.OUTCOME.includes('ACCEPTED')) acceptedCount++;
+            });
+            let successRate = ((acceptedCount / data.length) * 100).toFixed(1) + '%';
+            document.getElementById('success-rate').innerText = successRate; 
+
+            return { reasonCounts, vaccineCounts, occupationCounts, educationCounts, yearCounts };
+        }
+
+        // --- MAP PLOTTING ---
+        function plotMapPoints(data) {
+            markersLayer.clearLayers(); // Clear existing markers before re-adding
+            
+            data.forEach(row => {
+                if (row.Latitude && row.Longitude) {
+                    const popupContent = `
+                        <div class="font-sans text-sm">
+                            <h3 class="font-bold text-indigo-700 border-b pb-1 mb-2">Kes ID: ${row.Tahun || 'N/A'}</h3>
+                            <div class="grid grid-cols-2 gap-x-2 gap-y-1">
+                                <span class="text-slate-500 text-xs">Pekerjaan:</span>
+                                <span class="font-medium text-xs">${row['PEKERJAAN IBU'] || '-'}</span>
+                                <span class="text-slate-500 text-xs">Pendidikan:</span>
+                                <span class="font-medium text-xs">${row['TAHAP PENDIDIKAN IBU'] || '-'}</span>
+                                <span class="text-slate-500 text-xs">Status:</span>
+                                <span class="font-bold text-xs ${row.OUTCOME && row.OUTCOME.includes('ACCEPTED') ? 'text-green-600' : 'text-red-600'}">
+                                    ${row.OUTCOME || 'Unknown'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+
+                    L.circleMarker([row.Latitude, row.Longitude], {
+                        radius: 6,
+                        fillColor: "#ef4444", 
+                        color: "#b91c1c",    
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.6
+                    })
+                    .bindPopup(popupContent)
+                    .addTo(markersLayer);
+                }
+            });
+        }
+
+        // --- CHART RENDERING ---
+        function renderCharts(data) {
+            const processed = processData(data);
+            
+            // 1. Reason Chart (Horizontal Bar)
+            const sortedReasons = Object.entries(processed.reasonCounts).sort(([,a], [,b]) => b - a);
+            new Chart(document.getElementById('reasonChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedReasons.map(([k]) => k.replace(/_/g, ' ')),
+                    datasets: [{
+                        label: 'Bilangan Kes',
+                        data: sortedReasons.map(([,v]) => v),
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, grid: { display: false } }, y: { grid: { display: false } } }
+                }
+            });
+
+            // 2. Vaccine Chart (Vertical Bar)
+            const sortedVaccines = Object.entries(processed.vaccineCounts).sort(([,a], [,b]) => b - a);
+            new Chart(document.getElementById('vaccineChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedVaccines.map(([k]) => k),
+                    datasets: [{
+                        label: 'Penolakan',
+                        data: sortedVaccines.map(([,v]) => v),
+                        backgroundColor: '#ef4444',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // 3. Yearly Trend Chart (Line)
+            const sortedYears = Object.keys(processed.yearCounts).sort();
+            new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: {
+                    labels: sortedYears,
+                    datasets: [{
+                        label: 'Bilangan Kes',
+                        data: sortedYears.map(y => processed.yearCounts[y]),
+                        borderColor: '#3b82f6', // Blue-500
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // 4. Occupation Chart (Top 5 only)
+            const sortedOcc = Object.entries(processed.occupationCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 5);
+            
+            new Chart(document.getElementById('occupationChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: sortedOcc.map(([k]) => k),
+                    datasets: [{
+                        data: sortedOcc.map(([,v]) => v),
+                        backgroundColor: [
+                            '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } } 
+                    }
+                }
+            });
+
+             // 5. Education Chart (Bar)
+             const sortedEdu = Object.entries(processed.educationCounts).sort(([,a], [,b]) => b - a);
+             new Chart(document.getElementById('educationChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedEdu.map(([k]) => k),
+                    datasets: [{
+                        label: 'Bilangan',
+                        data: sortedEdu.map(([,v]) => v),
+                        backgroundColor: '#10b981', // Emerald-500
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
